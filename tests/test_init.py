@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import timedelta
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -12,22 +13,24 @@ from homeassistant.const import CONF_ADDRESS, CONF_NAME, STATE_OFF, STATE_ON, ST
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from homeassistant.util import dt as dt_util
+from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
 
 from custom_components.allpowers import device as device_module
-from custom_components.allpowers.const import DOMAIN, NOTIFY_UUID, WRITE_UUID
+from custom_components.allpowers.const import CONF_UPDATE_INTERVAL, DOMAIN, NOTIFY_UUID, WRITE_UUID
 from custom_components.allpowers.diagnostics import async_get_config_entry_diagnostics
 from custom_components.allpowers.protocol import STATUS_REQUEST
 
 from .helpers import P300_ADDRESS, P300_NAME, P300_SETTINGS, service_info, status_frame
 
 
-def _entry(hass: HomeAssistant) -> MockConfigEntry:
+def _entry(hass: HomeAssistant, update_interval: int | None = None) -> MockConfigEntry:
     entry = MockConfigEntry(
         domain=DOMAIN,
         title=P300_NAME,
         unique_id=P300_ADDRESS,
         data={CONF_ADDRESS: P300_ADDRESS, CONF_NAME: P300_NAME},
+        options={} if update_interval is None else {CONF_UPDATE_INTERVAL: update_interval},
     )
     entry.add_to_hass(hass)
     return entry
@@ -77,6 +80,9 @@ async def test_entities_follow_notifications(hass: HomeAssistant):
     device.handle_notification(None, bytearray(P300_SETTINGS))
     device.handle_notification(None, bytearray(status_frame(battery=87, input_w=0, output_w=45, minutes=300)))
     await hass.async_block_till_done()
+    # The second frame arrived within the update interval: published when it ends.
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=16))
+    await hass.async_block_till_done()
 
     assert hass.states.get(battery).state == "87"
     assert hass.states.get(_eid(hass, "sensor", "input_power")).state == "0"
@@ -107,7 +113,7 @@ async def test_entities_follow_notifications(hass: HomeAssistant):
 async def test_session_requests_status_and_reconnects(hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(device_module, "KEEPALIVE_SECONDS", 0.01)
     monkeypatch.setattr(device_module, "RETRY_MIN_SECONDS", 0.01)
-    entry = _entry(hass)
+    entry = _entry(hass, update_interval=0)
     client = FakeClient([P300_SETTINGS, status_frame(battery=64)])
     ble = BLEDevice(P300_ADDRESS, P300_NAME, {})
     with (
@@ -169,4 +175,43 @@ async def test_follows_station_by_name_when_address_changes(hass: HomeAssistant)
     assert ble is new.device
     assert entry.data[CONF_ADDRESS] == "7A:00:00:00:00:01"
     assert entry.unique_id == P300_ADDRESS  # entities keep their IDs
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_updates_are_throttled(hass: HomeAssistant):
+    """The station notifies about twice a second; entities change at most every 15 s (default)."""
+    entry = _entry(hass)
+    with patch.object(device_module.AllpowersDevice, "start"):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+    device = entry.runtime_data
+    device._set_connected(True)
+    output = _eid(hass, "sensor", "output_power")
+    changes: list[str] = []
+    hass.bus.async_listen(
+        "state_changed",
+        lambda event: (
+            changes.append(event.data["new_state"].state) if event.data["entity_id"] == output else None
+        ),
+    )
+    device._last_publish = 0  # the last publish (connection) was long ago
+    for watts in (4, 6, 5, 7, 19):
+        device.handle_notification(None, bytearray(status_frame(output_w=watts)))
+    await hass.async_block_till_done()
+    assert changes == ["4"]
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=16))
+    await hass.async_block_till_done()
+    assert changes == ["4", "19"]
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_update_interval_option_applies_live(hass: HomeAssistant):
+    entry = _entry(hass)
+    with patch.object(device_module.AllpowersDevice, "start"):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+    assert entry.runtime_data.update_interval == 15
+    hass.config_entries.async_update_entry(entry, options={CONF_UPDATE_INTERVAL: 60})
+    await hass.async_block_till_done()
+    assert entry.runtime_data.update_interval == 60
     assert await hass.config_entries.async_unload(entry.entry_id)

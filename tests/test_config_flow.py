@@ -10,7 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.allpowers.const import DOMAIN
+from custom_components.allpowers.const import CONF_UPDATE_INTERVAL, DOMAIN
 
 from .helpers import P300_ADDRESS, P300_NAME, service_info
 
@@ -81,3 +81,17 @@ async def test_user_flow_no_devices(hass: HomeAssistant):
         )
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "no_devices_found"
+
+
+async def test_options_flow_update_interval(hass: HomeAssistant):
+    entry = MockConfigEntry(
+        domain=DOMAIN, unique_id=P300_ADDRESS, data={CONF_ADDRESS: P300_ADDRESS, CONF_NAME: P300_NAME}
+    )
+    entry.add_to_hass(hass)
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert result["type"] is FlowResultType.FORM
+    defaults = {str(key): key.default() for key in result["data_schema"].schema}
+    assert defaults[CONF_UPDATE_INTERVAL] == 15
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {CONF_UPDATE_INTERVAL: 30})
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.options == {CONF_UPDATE_INTERVAL: 30}

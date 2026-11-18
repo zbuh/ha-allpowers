@@ -12,6 +12,11 @@ SERVICE_UUID = "0000fff0-0000-1000-8000-00805f9b34fb"
 NOTIFY_UUID = "0000fff1-0000-1000-8000-00805f9b34fb"
 WRITE_UUID = "0000fff2-0000-1000-8000-00805f9b34fb"
 
+CONF_UPDATE_INTERVAL = "update_interval"
+# The station notifies about twice a second; entities update at most this often (option).
+DEFAULT_UPDATE_INTERVAL = 15
+MIN_UPDATE_INTERVAL = 1
+MAX_UPDATE_INTERVAL = 300
 KEEPALIVE_SECONDS = 20  # status request period
 WATCHDOG_SECONDS = 60  # reconnect when no valid frame arrives for this long
 RETRY_MIN_SECONDS = 5

@@ -18,9 +18,11 @@ from bleak_retry_connector import (
     establish_connection,
 )
 from homeassistant.components import bluetooth
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
+from homeassistant.helpers.event import async_call_later
 
 from .const import (
+    DEFAULT_UPDATE_INTERVAL,
     KEEPALIVE_SECONDS,
     NOTIFY_UUID,
     RETRY_MAX_SECONDS,
@@ -59,11 +61,13 @@ class AllpowersDevice:
         address: str,
         name: str,
         on_address_change: Callable[[str], None] | None = None,
+        update_interval: float = DEFAULT_UPDATE_INTERVAL,
     ) -> None:
         self.hass = hass
         self.address = address
         self.name = name
         self._on_address_change = on_address_change
+        self.update_interval = update_interval
         self.status: Status | None = None
         self.settings: Settings | None = None
         self.connected = False
@@ -77,6 +81,8 @@ class AllpowersDevice:
         self._stopping = False
         self._task: asyncio.Task | None = None
         self._client: BleakClientWithServiceCache | None = None
+        self._last_publish = 0.0
+        self._pending_publish: CALLBACK_TYPE | None = None
 
     # ------------------------------------------------------------------ state
 
@@ -95,8 +101,29 @@ class AllpowersDevice:
 
     @callback
     def _notify(self) -> None:
+        if self._pending_publish is not None:
+            self._pending_publish()
+            self._pending_publish = None
+        self._last_publish = time.monotonic()
         for listener in list(self._listeners):
             listener()
+
+    @callback
+    def _publish_throttled(self) -> None:
+        """Publish now, or once update_interval seconds have passed since the last publish."""
+        if self._pending_publish is not None:
+            return
+        wait = self.update_interval - (time.monotonic() - self._last_publish)
+        if wait <= 0:
+            self._notify()
+            return
+
+        @callback
+        def _flush(_now: Any) -> None:
+            self._pending_publish = None
+            self._notify()
+
+        self._pending_publish = async_call_later(self.hass, wait, _flush)
 
     @callback
     def _set_connected(self, connected: bool) -> None:
@@ -119,7 +146,7 @@ class AllpowersDevice:
                 self.settings = settings
         else:
             _LOGGER.debug("%s: unhandled command 0x%02x: %s", self.name, frame.command, frame.raw.hex())
-        self._notify()
+        self._publish_throttled()
 
     @callback
     def handle_notification(self, _sender: Any, data: bytearray) -> None:
@@ -150,6 +177,9 @@ class AllpowersDevice:
         if client is not None:
             with contextlib.suppress(*CONNECT_ERRORS):
                 await client.disconnect()
+        if self._pending_publish is not None:
+            self._pending_publish()
+            self._pending_publish = None
         self._set_connected(False)
 
     # ------------------------------------------------------------- connection

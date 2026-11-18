@@ -62,5 +62,18 @@
         "name": "Ligação Bluetooth"
       }
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opções",
+        "data": {
+          "update_interval": "Intervalo de atualização (segundos)"
+        },
+        "data_description": {
+          "update_interval": "A bateria envia dados cerca de duas vezes por segundo. As entidades são atualizadas no máximo com esta frequência, para não encher a base de dados. Mudanças na ligação aparecem logo."
+        }
+      }
+    }
   }
 }

@@ -62,5 +62,18 @@
         "name": "Bluetooth connection"
       }
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options",
+        "data": {
+          "update_interval": "Update interval (seconds)"
+        },
+        "data_description": {
+          "update_interval": "The station sends data about twice a second. Entities are updated at most this often, to keep the recorder database small. Connection changes are shown immediately."
+        }
+      }
+    }
   }
 }

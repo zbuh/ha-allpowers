@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0 (2026-11-18)
+
+- **Update interval option** (default 15 s, 1–300 s, *Configure* on the integration). The station
+  notifies about twice a second; publishing every frame flooded the recorder with state changes.
+  Connection changes are still shown immediately. Applies without a reload.
+
 ## 0.1.0 (2026-11-18)
 
 First release, read-only.

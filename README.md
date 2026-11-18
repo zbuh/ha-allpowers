@@ -29,7 +29,7 @@ mistaken "AC off" would cut power to the very server running Home Assistant.
 
 | Model | Status |
 |---|---|
-| VOLIX P300 | protocol confirmed (GATT layout and a real settings frame); live test in progress |
+| VOLIX P300 | tested (firmware 1.0) |
 | Other models advertising `VOLIX…` or `AP S…` | expected to work (same protocol), untested |
 
 ## Installation
@@ -37,6 +37,12 @@ mistaken "AC off" would cut power to the very server running Home Assistant.
 Install **ALLPOWERS (Bluetooth)** from the Marketplace/HACS (custom repository
 `https://github.com/zbuh/ha-allpowers`, category *Integration*), restart Home Assistant, and the
 station shows up as a discovered device. Otherwise use *Add integration → ALLPOWERS*.
+
+## Options
+
+| Option | Default | |
+|---|---|---|
+| Update interval | 15 s | The station sends data about twice a second; entities are updated at most this often, to keep the recorder database small. |
 
 ## Important: one connection at a time
 
