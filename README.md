@@ -29,7 +29,7 @@ mistaken "AC off" would cut power to the very server running Home Assistant.
 
 | Model | Status |
 |---|---|
-| VOLIX P300 | tested |
+| VOLIX P300 | protocol confirmed (GATT layout and a real settings frame); live test in progress |
 | Other models advertising `VOLIX…` or `AP S…` | expected to work (same protocol), untested |
 
 ## Installation
