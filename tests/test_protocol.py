@@ -1,0 +1,97 @@
+"""Frame validation and decoding."""
+
+from __future__ import annotations
+
+from custom_components.allpowers.protocol import (
+    CMD_SETTINGS,
+    CMD_STATUS,
+    STATUS_REQUEST,
+    FrameBuffer,
+    decode_settings,
+    decode_status,
+    parse_frame,
+    version,
+)
+
+from .helpers import P300_SETTINGS, frame, status_frame
+
+
+def test_real_p300_settings_frame():
+    parsed = parse_frame(P300_SETTINGS)
+    assert parsed is not None and parsed.command == CMD_SETTINGS
+    settings = decode_settings(parsed)
+    assert settings is not None
+    assert settings.eco is False
+    assert settings.work_mode == "standard"
+    assert settings.car_charger is False
+    assert settings.eco_shutdown_hours == 1
+    assert settings.hardware_version == "1.0"
+    assert settings.firmware_version == "1.0"
+    assert decode_status(parsed) is None
+
+
+def test_status_frame():
+    parsed = parse_frame(status_frame(battery=87, input_w=120, output_w=45, minutes=300, flags=0x13))
+    assert parsed is not None and parsed.command == CMD_STATUS
+    status = decode_status(parsed)
+    assert status is not None
+    assert (status.dc_on, status.ac_on, status.light_on) == (True, True, True)
+    assert status.battery == 87
+    assert status.input_power == 120
+    assert status.output_power == 45
+    assert status.remaining_minutes == 300
+
+
+def test_status_large_values_are_big_endian():
+    status = decode_status(parse_frame(status_frame(input_w=0x0102, output_w=600, minutes=5999, flags=0)))
+    assert status.input_power == 258
+    assert status.output_power == 600
+    assert status.remaining_minutes == 5999
+    assert (status.dc_on, status.ac_on, status.light_on) == (False, False, False)
+
+
+def test_rejects_bad_frames():
+    good = status_frame()
+    assert parse_frame(good[:-1] + bytes([good[-1] ^ 0xFF])) is None  # checksum
+    assert parse_frame(good + b"\x00") is None  # length
+    assert parse_frame(b"\x00" + good[1:]) is None  # header
+    assert parse_frame(good[:7]) is None  # too short
+    assert decode_status(parse_frame(status_frame(battery=101))) is None
+    short = parse_frame(frame(0x01, b"\x00\x10"))
+    assert short is not None and decode_status(short) is None
+
+
+def test_status_request_is_verbatim():
+    assert STATUS_REQUEST.hex() == "a565b10001060100000000" + "00"
+    assert len(STATUS_REQUEST) == 12
+
+
+def test_version():
+    assert version(0x10) == "1.0"
+    assert version(0x12) == "1.2"
+    assert version(0x23) == "2.3"
+    assert version(0x1A) == "0x1A"
+
+
+def test_buffer_reassembles_split_and_joined_frames():
+    buf = FrameBuffer()
+    a, b = status_frame(battery=50), P300_SETTINGS
+    assert buf.feed(a[:5]) == []
+    assert [f.raw for f in buf.feed(a[5:] + b[:9])] == [a]
+    assert [f.raw for f in buf.feed(b[9:])] == [b]
+
+
+def test_buffer_skips_garbage_and_corrupt_frames():
+    buf = FrameBuffer()
+    corrupt = bytearray(status_frame())
+    corrupt[8] ^= 0x01
+    good = status_frame(battery=42)
+    frames = buf.feed(b"\x01\x02" + bytes(corrupt) + b"\xff" + good)
+    assert [f.raw for f in frames] == [good]
+
+
+def test_buffer_keeps_half_header():
+    buf = FrameBuffer()
+    good = status_frame()
+    assert buf.feed(b"\x00\x00" + good[:1]) == []
+    assert [f.raw for f in buf.feed(good[1:])] == [good]

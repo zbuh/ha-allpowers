@@ -1,0 +1,66 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "Bateria ALLPOWERS",
+        "description": "Escolha uma bateria vista pelo Bluetooth da Home Assistant. Feche antes a app ALLPOWERS: a bateria só aceita uma ligação.",
+        "data": {
+          "address": "Bateria"
+        }
+      },
+      "bluetooth_confirm": {
+        "title": "Bateria ALLPOWERS",
+        "description": "Configurar {name} ({address})? Feche antes a app ALLPOWERS: a bateria só aceita uma ligação Bluetooth e, enquanto a Home Assistant estiver ligada, a app não consegue ligar-se."
+      }
+    },
+    "abort": {
+      "already_configured": "Esta bateria já está configurada",
+      "no_devices_found": "Nenhuma bateria ALLPOWERS encontrada. Ligue o Bluetooth dela, feche a app ALLPOWERS e tente de novo."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "battery": {
+        "name": "Bateria"
+      },
+      "input_power": {
+        "name": "Potência de entrada"
+      },
+      "output_power": {
+        "name": "Potência de saída"
+      },
+      "remaining_time": {
+        "name": "Autonomia"
+      },
+      "work_mode": {
+        "name": "Modo de funcionamento",
+        "state": {
+          "mute": "Silencioso",
+          "standard": "Normal",
+          "fast": "Rápido"
+        }
+      },
+      "eco_shutdown": {
+        "name": "Desligar em ECO após"
+      }
+    },
+    "binary_sensor": {
+      "ac_output": {
+        "name": "Saída AC"
+      },
+      "dc_output": {
+        "name": "Saída DC"
+      },
+      "light": {
+        "name": "Luz"
+      },
+      "eco_mode": {
+        "name": "Modo ECO"
+      },
+      "connection": {
+        "name": "Ligação Bluetooth"
+      }
+    }
+  }
+}

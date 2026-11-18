@@ -1,0 +1,54 @@
+# Protocol notes
+
+This integration does not claim independent reverse engineering. Offsets and the status
+request come from the public, MIT-licensed
+[`madninjaskillz/allpowers-ble`](https://github.com/madninjaskillz/allpowers-ble) library and the
+protocol notes of [`dedalodaelus/esphome-allpowers-ble`](https://github.com/dedalodaelus/esphome-allpowers-ble).
+
+## GATT
+
+| UUID | Use |
+|---|---|
+| `FFF0` | service |
+| `FFF1` | notifications (status and settings frames) |
+| `FFF2` | writes (status request) |
+
+A VOLIX P300 (Jieli chip, manufacturer ID `0x05D6`) also exposes `FF03` and `AE00`/`AE01`/`AE02`
+(vendor firmware-update channel); they are not used.
+
+## Frames
+
+```text
+A5 65 .. .. .. LL CC [LL payload bytes] XX
+```
+
+`LL` = payload length, `CC` = command, total length `8 + LL`, `XX` = XOR of all previous bytes.
+
+### Status request (write to FFF2 every 20 s, verbatim)
+
+```text
+A5 65 B1 00 01 06 01 00 00 00 00 00
+```
+
+### Command 0x01: status
+
+| Offset | Meaning |
+|---|---|
+| 7 bit 0 / bit 1 / bit 4 | DC / AC / light on |
+| 8 | battery % (0–100) |
+| 9–10 | input power, W, big-endian |
+| 11–12 | output power, W, big-endian |
+| 13–14 | remaining time, minutes, big-endian |
+
+### Command 0x03: settings
+
+| Offset | Meaning |
+|---|---|
+| 7 bit 0 | ECO |
+| 7 bits 1–2 | work mode: 0 mute, 1 standard, 2 fast |
+| 7 bit 4 | car charger socket |
+| 8 | ECO shutdown, hours |
+| 11 / 12 | hardware / firmware version (hex digits read as `major.minor`) |
+
+Real frame from a VOLIX P300 (standard mode, ECO off, 1 h, versions 1.0/1.0):
+`a565b1000106030201176a10100b`.
