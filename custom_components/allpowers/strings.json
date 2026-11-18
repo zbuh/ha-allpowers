@@ -20,6 +20,33 @@
     }
   },
   "entity": {
+    "switch": {
+      "ac_output": {
+        "name": "AC output"
+      },
+      "dc_output": {
+        "name": "DC output"
+      },
+      "light": {
+        "name": "Light"
+      },
+      "eco_mode": {
+        "name": "ECO mode"
+      }
+    },
+    "select": {
+      "work_mode": {
+        "name": "Work mode",
+        "state": {
+          "mute": "Mute",
+          "standard": "Standard",
+          "fast": "Fast"
+        }
+      },
+      "eco_shutdown": {
+        "name": "ECO shutdown after (hours)"
+      }
+    },
     "sensor": {
       "battery": {
         "name": "Battery"
@@ -32,32 +59,9 @@
       },
       "remaining_time": {
         "name": "Remaining time"
-      },
-      "work_mode": {
-        "name": "Work mode",
-        "state": {
-          "mute": "Mute",
-          "standard": "Standard",
-          "fast": "Fast"
-        }
-      },
-      "eco_shutdown": {
-        "name": "ECO shutdown time"
       }
     },
     "binary_sensor": {
-      "ac_output": {
-        "name": "AC output"
-      },
-      "dc_output": {
-        "name": "DC output"
-      },
-      "light": {
-        "name": "Light"
-      },
-      "eco_mode": {
-        "name": "ECO mode"
-      },
       "connection": {
         "name": "Bluetooth connection"
       }

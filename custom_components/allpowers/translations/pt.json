@@ -20,6 +20,33 @@
     }
   },
   "entity": {
+    "switch": {
+      "ac_output": {
+        "name": "Saída AC"
+      },
+      "dc_output": {
+        "name": "Saída DC"
+      },
+      "light": {
+        "name": "Luz"
+      },
+      "eco_mode": {
+        "name": "Modo ECO"
+      }
+    },
+    "select": {
+      "work_mode": {
+        "name": "Modo de funcionamento",
+        "state": {
+          "mute": "Silencioso",
+          "standard": "Normal",
+          "fast": "Rápido"
+        }
+      },
+      "eco_shutdown": {
+        "name": "Desligar em ECO após (horas)"
+      }
+    },
     "sensor": {
       "battery": {
         "name": "Bateria"
@@ -32,32 +59,9 @@
       },
       "remaining_time": {
         "name": "Autonomia"
-      },
-      "work_mode": {
-        "name": "Modo de funcionamento",
-        "state": {
-          "mute": "Silencioso",
-          "standard": "Normal",
-          "fast": "Rápido"
-        }
-      },
-      "eco_shutdown": {
-        "name": "Desligar em ECO após"
       }
     },
     "binary_sensor": {
-      "ac_output": {
-        "name": "Saída AC"
-      },
-      "dc_output": {
-        "name": "Saída DC"
-      },
-      "light": {
-        "name": "Luz"
-      },
-      "eco_mode": {
-        "name": "Modo ECO"
-      },
       "connection": {
         "name": "Ligação Bluetooth"
       }

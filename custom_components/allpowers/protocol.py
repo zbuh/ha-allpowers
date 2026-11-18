@@ -153,3 +153,58 @@ class FrameBuffer:
                 continue
             frames.append(frame)
             del self._buf[:size]
+
+
+# ---------------------------------------------------------------- commands
+
+COMMAND_PREFIX = b"\xa5\x65\x00\xb1\x01"
+CMD_SET_OUTPUTS = 0x00
+CMD_SET_SETTINGS = 0x02
+
+# Output bits differ between the control frame and the status frame for the light.
+CONTROL_DC = 0x01
+CONTROL_AC = 0x02
+CONTROL_LIGHT = 0x20
+
+SETTINGS_ECO = 0x01
+SETTINGS_WORK_MODE_MASK = 0x06
+SETTINGS_WORK_MODE_SHIFT = 1
+ECO_SHUTDOWN_HOURS = (1, 2, 4, 6)
+
+
+def _command(command: int, payload: bytes) -> bytes:
+    body = COMMAND_PREFIX + bytes([len(payload), command]) + payload
+    return body + bytes([xor(body)])
+
+
+def outputs_command(*, ac: bool, dc: bool, light: bool) -> bytes:
+    """Set all three outputs at once: ``A5 65 00 B1 01 01 00 SS XX``.
+
+    The upstream library computes XX as ``113 - SS (+4 with AC)``; for every
+    valid SS that equals the XOR of the previous bytes, used here.
+    """
+    flags = (CONTROL_AC if ac else 0) | (CONTROL_DC if dc else 0) | (CONTROL_LIGHT if light else 0)
+    return _command(CMD_SET_OUTPUTS, bytes([flags]))
+
+
+def settings_command(
+    current: Settings,
+    *,
+    eco: bool | None = None,
+    work_mode: str | None = None,
+    eco_shutdown_hours: int | None = None,
+) -> bytes:
+    """Read-modify-write of the settings: ``A5 65 00 B1 01 02 02 FF TT XX``.
+
+    Every bit not being changed is copied from the latest settings frame.
+    """
+    flags = current.raw_flags
+    if eco is not None:
+        flags = (flags | SETTINGS_ECO) if eco else (flags & ~SETTINGS_ECO)
+    if work_mode is not None:
+        code = {name: code for code, name in WORK_MODES.items()}[work_mode]
+        flags = (flags & ~SETTINGS_WORK_MODE_MASK) | (code << SETTINGS_WORK_MODE_SHIFT)
+    hours = current.eco_shutdown_hours if eco_shutdown_hours is None else eco_shutdown_hours
+    if eco_shutdown_hours is not None and eco_shutdown_hours not in ECO_SHUTDOWN_HOURS:
+        raise ValueError(f"ECO shutdown must be one of {ECO_SHUTDOWN_HOURS} h")
+    return _command(CMD_SET_SETTINGS, bytes([flags & 0xFF, hours]))

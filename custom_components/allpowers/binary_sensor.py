@@ -1,4 +1,4 @@
-"""Binary sensors: output states (read-only), ECO mode and the BLE link."""
+"""Binary sensor: the BLE link (outputs and ECO are switches)."""
 
 from __future__ import annotations
 
@@ -26,26 +26,6 @@ class AllpowersBinaryDescription(BinarySensorEntityDescription):
 
 
 BINARY_SENSORS: tuple[AllpowersBinaryDescription, ...] = (
-    AllpowersBinaryDescription(
-        key="ac_output",
-        device_class=BinarySensorDeviceClass.POWER,
-        value=lambda d: d.status.ac_on if d.status else None,
-    ),
-    AllpowersBinaryDescription(
-        key="dc_output",
-        device_class=BinarySensorDeviceClass.POWER,
-        value=lambda d: d.status.dc_on if d.status else None,
-    ),
-    AllpowersBinaryDescription(
-        key="light",
-        device_class=BinarySensorDeviceClass.LIGHT,
-        value=lambda d: d.status.light_on if d.status else None,
-    ),
-    AllpowersBinaryDescription(
-        key="eco_mode",
-        entity_category=EntityCategory.DIAGNOSTIC,
-        value=lambda d: d.settings.eco if d.settings else None,
-    ),
     AllpowersBinaryDescription(
         key="connection",
         device_class=BinarySensorDeviceClass.CONNECTIVITY,

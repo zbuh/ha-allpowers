@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import dataclasses
+
+import pytest
+
 from custom_components.allpowers.protocol import (
     CMD_SETTINGS,
     CMD_STATUS,
@@ -9,8 +13,11 @@ from custom_components.allpowers.protocol import (
     FrameBuffer,
     decode_settings,
     decode_status,
+    outputs_command,
     parse_frame,
+    settings_command,
     version,
+    xor,
 )
 
 from .helpers import P300_SETTINGS, frame, status_frame
@@ -95,3 +102,29 @@ def test_buffer_keeps_half_header():
     good = status_frame()
     assert buf.feed(b"\x00\x00" + good[:1]) == []
     assert [f.raw for f in buf.feed(good[1:])] == [good]
+
+
+def test_outputs_command_matches_upstream_checksum():
+    """Upstream computes the checksum as 113 - SS (+4 with AC); XOR gives the same bytes."""
+    for ac in (False, True):
+        for dc in (False, True):
+            for light in (False, True):
+                frame = outputs_command(ac=ac, dc=dc, light=light)
+                ss = (0x02 if ac else 0) | (0x01 if dc else 0) | (0x20 if light else 0)
+                upstream = (113 - ss + (4 if ac else 0)) & 0xFF
+                assert frame == bytes([0xA5, 0x65, 0x00, 0xB1, 0x01, 0x01, 0x00, ss, upstream])
+
+
+def test_settings_command_read_modify_write():
+    current = decode_settings(parse_frame(P300_SETTINGS))  # flags 0x02 (standard), 1 h
+    frame = settings_command(current, eco=True)
+    assert frame[:7] == bytes.fromhex("a56500b1010202") and frame[7] == 0x03 and frame[8] == 1
+    assert xor(frame) == 0
+    assert settings_command(current, work_mode="fast")[7] == 0x04
+    assert settings_command(current, work_mode="mute")[7] == 0x00
+    assert settings_command(current, eco_shutdown_hours=6)[7:9] == bytes([0x02, 6])
+    # Unknown/reserved bits are preserved.
+    odd = dataclasses.replace(current, raw_flags=0b1101_0010)
+    assert settings_command(odd, eco=True)[7] == 0b1101_0011
+    with pytest.raises(ValueError):
+        settings_command(current, eco_shutdown_hours=3)

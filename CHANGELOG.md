@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0 (2026-11-18)
+
+- **Controls**: switches for AC output, DC output, light and ECO mode; selects for work mode
+  (mute/standard/fast) and ECO shutdown time (1/2/4/6 h). Each command only succeeds once the
+  station reports the new state (5 s), otherwise the action raises an error.
+- Settings are written read-modify-write: every bit not being changed is copied from the latest
+  settings frame.
+- The read-only binary sensors (AC/DC/light/ECO) and the work-mode/ECO-time sensors are replaced by
+  the switches and selects; delete the old entities from the entity list.
+
 ## 0.2.0 (2026-11-18)
 
 - **Update interval option** (default 15 s, 1–300 s, *Configure* on the integration). The station

@@ -15,15 +15,20 @@ the server is running on battery and for how long it can last.
 | Battery | % |
 | Input power / Output power | W |
 | Remaining time | minutes, as estimated by the station |
-| AC output / DC output / Light | on/off (read-only) |
-| Work mode, ECO shutdown time, ECO mode | diagnostic, from the station's settings |
+| AC output / DC output / Light | switches |
+| ECO mode | switch (configuration) |
+| Work mode | select: mute / standard / fast (configuration) |
+| ECO shutdown after | select: 1 / 2 / 4 / 6 h (configuration) |
 | Bluetooth connection | diagnostic: fresh data from the station |
 
 Firmware and hardware versions appear on the device page. *Download diagnostics* includes the
 last raw frames, useful when reporting a new model.
 
-**Read-only on purpose.** Turning outputs off is not offered: on a station used as a UPS, a
-mistaken "AC off" would cut power to the very server running Home Assistant.
+Every command is **confirmed**: the action only succeeds once the station reports the new
+state (within 5 s), otherwise it raises an error instead of failing silently.
+
+> ⚠️ If the station is the UPS of your Home Assistant server, the switch of the output that
+> feeds the server turns the server off. Hide it from dashboards and voice assistants.
 
 ## Supported models
 

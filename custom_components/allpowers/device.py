@@ -19,6 +19,7 @@ from bleak_retry_connector import (
 )
 from homeassistant.components import bluetooth
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.event import async_call_later
 
 from .const import (
@@ -41,11 +42,14 @@ from .protocol import (
     Status,
     decode_settings,
     decode_status,
+    outputs_command,
+    settings_command,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
 CONNECT_ERRORS = (BleakError, TimeoutError, *BLEAK_RETRY_EXCEPTIONS)
+COMMAND_TIMEOUT_SECONDS = 5
 
 
 class AllpowersDevice:
@@ -83,6 +87,8 @@ class AllpowersDevice:
         self._client: BleakClientWithServiceCache | None = None
         self._last_publish = 0.0
         self._pending_publish: CALLBACK_TYPE | None = None
+        self._frame_event = asyncio.Event()
+        self._command_lock = asyncio.Lock()
 
     # ------------------------------------------------------------------ state
 
@@ -146,6 +152,7 @@ class AllpowersDevice:
                 self.settings = settings
         else:
             _LOGGER.debug("%s: unhandled command 0x%02x: %s", self.name, frame.command, frame.raw.hex())
+        self._frame_event.set()
         self._publish_throttled()
 
     @callback
@@ -157,6 +164,71 @@ class AllpowersDevice:
     def wake(self) -> None:
         """An advertisement was seen: retry now instead of waiting."""
         self._wake.set()
+
+    # --------------------------------------------------------------- commands
+
+    async def async_set_outputs(
+        self, *, ac: bool | None = None, dc: bool | None = None, light: bool | None = None
+    ) -> None:
+        """Change outputs; returns once a status frame shows the new state."""
+        status = self._require(self.status)
+        want = (
+            status.ac_on if ac is None else ac,
+            status.dc_on if dc is None else dc,
+            status.light_on if light is None else light,
+        )
+        frame = outputs_command(ac=want[0], dc=want[1], light=want[2])
+        await self._send_and_confirm(
+            frame,
+            lambda: (
+                self.status is not None
+                and (self.status.ac_on, self.status.dc_on, self.status.light_on) == want
+            ),
+        )
+
+    async def async_set_settings(
+        self, *, eco: bool | None = None, work_mode: str | None = None, eco_shutdown_hours: int | None = None
+    ) -> None:
+        """Change settings (read-modify-write); returns once a settings frame confirms it."""
+        current = self._require(self.settings)
+        frame = settings_command(current, eco=eco, work_mode=work_mode, eco_shutdown_hours=eco_shutdown_hours)
+
+        def confirmed() -> bool:
+            s = self.settings
+            return (
+                s is not None
+                and (eco is None or s.eco == eco)
+                and (work_mode is None or s.work_mode == work_mode)
+                and (eco_shutdown_hours is None or s.eco_shutdown_hours == eco_shutdown_hours)
+            )
+
+        await self._send_and_confirm(frame, confirmed)
+
+    def _require[T](self, value: T | None) -> T:
+        if not self.available or value is None:
+            raise HomeAssistantError(f"{self.name} is not connected")
+        return value
+
+    async def _send_and_confirm(self, frame: bytes, confirmed: Callable[[], bool]) -> None:
+        async with self._command_lock:
+            client = self._client
+            if client is None:
+                raise HomeAssistantError(f"{self.name} is not connected")
+            _LOGGER.debug("%s: command %s", self.name, frame.hex())
+            try:
+                await client.write_gatt_char(WRITE_UUID, frame, response=True)
+            except CONNECT_ERRORS as err:
+                raise HomeAssistantError(f"{self.name}: command failed: {err}") from err
+            try:
+                async with asyncio.timeout(COMMAND_TIMEOUT_SECONDS):
+                    while not confirmed():
+                        self._frame_event.clear()
+                        await self._frame_event.wait()
+            except TimeoutError as err:
+                raise HomeAssistantError(
+                    f"{self.name} did not confirm the change within {COMMAND_TIMEOUT_SECONDS} s"
+                ) from err
+            self._notify()  # show the result now, not at the next update interval
 
     # -------------------------------------------------------------- lifecycle
 

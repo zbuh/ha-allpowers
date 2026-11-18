@@ -11,6 +11,7 @@ from bleak.backends.device import BLEDevice
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_ADDRESS, CONF_NAME, STATE_OFF, STATE_ON, STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
@@ -21,7 +22,7 @@ from custom_components.allpowers.const import CONF_UPDATE_INTERVAL, DOMAIN, NOTI
 from custom_components.allpowers.diagnostics import async_get_config_entry_diagnostics
 from custom_components.allpowers.protocol import STATUS_REQUEST
 
-from .helpers import P300_ADDRESS, P300_NAME, P300_SETTINGS, service_info, status_frame
+from .helpers import P300_ADDRESS, P300_NAME, P300_SETTINGS, frame, service_info, status_frame
 
 
 def _entry(hass: HomeAssistant, update_interval: int | None = None) -> MockConfigEntry:
@@ -88,11 +89,12 @@ async def test_entities_follow_notifications(hass: HomeAssistant):
     assert hass.states.get(_eid(hass, "sensor", "input_power")).state == "0"
     assert hass.states.get(_eid(hass, "sensor", "output_power")).state == "45"
     assert hass.states.get(_eid(hass, "sensor", "remaining_time")).state == "300"
-    assert hass.states.get(_eid(hass, "sensor", "work_mode")).state == "standard"
-    assert hass.states.get(_eid(hass, "binary_sensor", "ac_output")).state == STATE_ON
-    assert hass.states.get(_eid(hass, "binary_sensor", "dc_output")).state == STATE_ON
-    assert hass.states.get(_eid(hass, "binary_sensor", "light")).state == STATE_OFF
-    assert hass.states.get(_eid(hass, "binary_sensor", "eco_mode")).state == STATE_OFF
+    assert hass.states.get(_eid(hass, "select", "work_mode")).state == "standard"
+    assert hass.states.get(_eid(hass, "select", "eco_shutdown")).state == "1"
+    assert hass.states.get(_eid(hass, "switch", "ac_output")).state == STATE_ON
+    assert hass.states.get(_eid(hass, "switch", "dc_output")).state == STATE_ON
+    assert hass.states.get(_eid(hass, "switch", "light")).state == STATE_OFF
+    assert hass.states.get(_eid(hass, "switch", "eco_mode")).state == STATE_OFF
     assert hass.states.get(connection).state == STATE_ON
 
     [dev] = dr.async_entries_for_config_entry(dr.async_get(hass), entry.entry_id)
@@ -214,4 +216,107 @@ async def test_update_interval_option_applies_live(hass: HomeAssistant):
     hass.config_entries.async_update_entry(entry, options={CONF_UPDATE_INTERVAL: 60})
     await hass.async_block_till_done()
     assert entry.runtime_data.update_interval == 60
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+class StationClient(FakeClient):
+    """Simulates the station: applies output/settings commands and notifies the new state."""
+
+    def __init__(self, *, confirm: bool = True) -> None:
+        super().__init__([])
+        self.confirm = confirm
+        self.flags = 0x01  # DC on
+        self.settings = bytearray(P300_SETTINGS)
+
+    async def write_gatt_char(self, uuid, data, response=None):
+        data = bytes(data)
+        self.writes.append((uuid, data))
+        if self.confirm and data[:5] == bytes.fromhex("a56500b101") and data[6] == 0x00:
+            ss = data[7]
+            self.flags = (ss & 0x03) | (0x10 if ss & 0x20 else 0)
+        if self.confirm and data[:5] == bytes.fromhex("a56500b101") and data[6] == 0x02:
+            body = self.settings[:7] + data[7:9] + self.settings[9:13]
+            self.settings = bytearray(frame(0x03, bytes(body[7:13])))
+        self.handler(None, bytearray(status_frame(flags=self.flags)))
+        self.handler(None, bytearray(self.settings))
+
+
+async def _connected(hass: HomeAssistant, client: FakeClient, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(device_module, "KEEPALIVE_SECONDS", 0.01)
+    monkeypatch.setattr(device_module, "COMMAND_TIMEOUT_SECONDS", 0.2)
+    entry = _entry(hass, update_interval=0)
+    ble = BLEDevice(P300_ADDRESS, P300_NAME, {})
+    patches = (
+        patch.object(device_module.bluetooth, "async_ble_device_from_address", return_value=ble),
+        patch.object(device_module, "establish_connection", AsyncMock(return_value=client)),
+    )
+    for p in patches:
+        p.start()
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    for _ in range(200):
+        await asyncio.sleep(0.01)
+        if entry.runtime_data.available and entry.runtime_data.settings:
+            break
+    await hass.async_block_till_done()
+    return entry, patches
+
+
+async def test_switch_commands_are_confirmed(hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch):
+    client = StationClient()
+    entry, patches = await _connected(hass, client, monkeypatch)
+    ac = _eid(hass, "switch", "ac_output")
+    assert hass.states.get(ac).state == STATE_OFF
+    await hass.services.async_call("switch", "turn_on", {"entity_id": ac}, blocking=True)
+    assert hass.states.get(ac).state == STATE_ON
+    assert (WRITE_UUID, bytes.fromhex("a56500b10101000372")) in client.writes  # AC + DC kept on
+
+    light = _eid(hass, "switch", "light")
+    await hass.services.async_call("switch", "turn_on", {"entity_id": light}, blocking=True)
+    assert hass.states.get(light).state == STATE_ON
+    assert client.writes[-1][1][7] == 0x23
+
+    await hass.services.async_call(
+        "select",
+        "select_option",
+        {"entity_id": _eid(hass, "select", "work_mode"), "option": "fast"},
+        blocking=True,
+    )
+    assert hass.states.get(_eid(hass, "select", "work_mode")).state == "fast"
+    await hass.services.async_call(
+        "select",
+        "select_option",
+        {"entity_id": _eid(hass, "select", "eco_shutdown"), "option": "4"},
+        blocking=True,
+    )
+    assert hass.states.get(_eid(hass, "select", "eco_shutdown")).state == "4"
+    await hass.services.async_call(
+        "switch", "turn_on", {"entity_id": _eid(hass, "switch", "eco_mode")}, blocking=True
+    )
+    assert hass.states.get(_eid(hass, "switch", "eco_mode")).state == STATE_ON
+    assert entry.runtime_data.settings.work_mode == "fast"  # earlier change kept
+
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    for p in patches:
+        p.stop()
+
+
+async def test_unconfirmed_command_raises(hass: HomeAssistant, monkeypatch: pytest.MonkeyPatch):
+    client = StationClient(confirm=False)
+    entry, patches = await _connected(hass, client, monkeypatch)
+    with pytest.raises(HomeAssistantError, match="did not confirm"):
+        await hass.services.async_call(
+            "switch", "turn_on", {"entity_id": _eid(hass, "switch", "ac_output")}, blocking=True
+        )
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    for p in patches:
+        p.stop()
+
+
+async def test_command_when_disconnected_raises(hass: HomeAssistant):
+    entry = _entry(hass)
+    with patch.object(device_module.AllpowersDevice, "start"):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+    with pytest.raises(HomeAssistantError, match="not connected"):
+        await entry.runtime_data.async_set_outputs(ac=False)
     assert await hass.config_entries.async_unload(entry.entry_id)

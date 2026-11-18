@@ -1,4 +1,4 @@
-"""Sensors: battery, input/output power, remaining time, work mode."""
+"""Sensors: battery, input/output power, remaining time."""
 
 from __future__ import annotations
 
@@ -11,14 +11,13 @@ from homeassistant.components.sensor import (
     SensorEntityDescription,
     SensorStateClass,
 )
-from homeassistant.const import PERCENTAGE, EntityCategory, UnitOfPower, UnitOfTime
+from homeassistant.const import PERCENTAGE, UnitOfPower, UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import AllpowersConfigEntry
 from .device import AllpowersDevice
 from .entity import AllpowersEntity
-from .protocol import WORK_MODES
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -54,20 +53,6 @@ SENSORS: tuple[AllpowersSensorDescription, ...] = (
         native_unit_of_measurement=UnitOfTime.MINUTES,
         state_class=SensorStateClass.MEASUREMENT,
         value=lambda d: d.status.remaining_minutes if d.status else None,
-    ),
-    AllpowersSensorDescription(
-        key="work_mode",
-        device_class=SensorDeviceClass.ENUM,
-        options=list(WORK_MODES.values()),
-        entity_category=EntityCategory.DIAGNOSTIC,
-        value=lambda d: d.settings.work_mode if d.settings else None,
-    ),
-    AllpowersSensorDescription(
-        key="eco_shutdown",
-        device_class=SensorDeviceClass.DURATION,
-        native_unit_of_measurement=UnitOfTime.HOURS,
-        entity_category=EntityCategory.DIAGNOSTIC,
-        value=lambda d: d.settings.eco_shutdown_hours if d.settings else None,
     ),
 )
 

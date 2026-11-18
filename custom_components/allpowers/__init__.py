@@ -12,7 +12,7 @@ from homeassistant.helpers import device_registry as dr
 from .const import CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL
 from .device import AllpowersDevice
 
-PLATFORMS: list[Platform] = [Platform.BINARY_SENSOR, Platform.SENSOR]
+PLATFORMS: list[Platform] = [Platform.BINARY_SENSOR, Platform.SELECT, Platform.SENSOR, Platform.SWITCH]
 
 type AllpowersConfigEntry = ConfigEntry[AllpowersDevice]
 
