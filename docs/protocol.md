@@ -36,7 +36,7 @@ A5 65 B1 00 01 06 01 00 00 00 00 00
 |---|---|
 | 7 bit 0 / bit 1 / bit 4 | DC / AC / light on |
 | 8 | battery % (0–100) |
-| 9–10 | input power, W, big-endian |
+| 9–10 | input power, W, big-endian (P300 fw 1.0: after a charge it repeats the last value; trust it only while 13–14 = 5994) |
 | 11–12 | output power, W, big-endian |
 | 13–14 | remaining time, minutes, big-endian; 5994 (99:54) while charging |
 

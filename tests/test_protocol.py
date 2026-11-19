@@ -45,6 +45,18 @@ def test_real_p300_frames_while_charging():
     status = decode_status(parse_frame(bytes.fromhex("a565b100010801015e00700006176a2d")))
     assert (status.battery, status.input_power, status.output_power) == (94, 112, 6)
     assert status.remaining_minutes is None
+    assert status.charging and status.charge_power == 112
+
+
+def test_input_power_stuck_after_charge_reads_zero():
+    """After a charge the P300 keeps sending the last input power (42 W) while its screen shows 0 W.
+
+    It sends a remaining-time estimate again, which it only does when not charging.
+    """
+    status = decode_status(parse_frame(status_frame(battery=100, input_w=42, output_w=5, minutes=1964)))
+    assert status.input_power == 42  # raw value kept for diagnostics
+    assert not status.charging
+    assert status.charge_power == 0
 
 
 def test_status_frame():

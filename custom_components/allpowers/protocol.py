@@ -64,6 +64,20 @@ class Status:
     output_power: int
     remaining_minutes: int | None  # None while charging
 
+    @property
+    def charging(self) -> bool:
+        """The station only estimates the remaining time when it is not charging."""
+        return self.remaining_minutes is None
+
+    @property
+    def charge_power(self) -> int:
+        """Input power, 0 when not charging.
+
+        After a charge the firmware keeps repeating the last input power (e.g. 42 W)
+        while its own screen shows 0 W.
+        """
+        return self.input_power if self.charging else 0
+
 
 @dataclass(frozen=True, slots=True)
 class Settings:

@@ -249,10 +249,13 @@ async def test_remaining_time_is_a_rolling_median(hass: HomeAssistant, monkeypat
     await hass.async_block_till_done()
     assert device.remaining_minutes is None
     assert hass.states.get(remaining).state == "unknown"
-    # Discharging again: a new window, without readings from before the charge.
-    send(1500)
-    send(1600)
-    assert device.remaining_minutes == 1550
+    assert hass.states.get(_eid(hass, "sensor", "input_power")).state == "112"
+    # Charge over: the firmware keeps repeating the last input power, but estimates again.
+    send(1500, input_w=42)
+    send(1600, input_w=42)
+    await hass.async_block_till_done()
+    assert device.remaining_minutes == 1550  # a new window, without readings from before the charge
+    assert hass.states.get(_eid(hass, "sensor", "input_power")).state == "0"
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 

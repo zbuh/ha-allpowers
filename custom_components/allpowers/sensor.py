@@ -40,7 +40,7 @@ SENSORS: tuple[AllpowersSensorDescription, ...] = (
         device_class=SensorDeviceClass.POWER,
         native_unit_of_measurement=UnitOfPower.WATT,
         state_class=SensorStateClass.MEASUREMENT,
-        value=lambda d: d.status.input_power if d.status else None,
+        value=lambda d: d.status.charge_power if d.status else None,
     ),
     AllpowersSensorDescription(
         key="output_power",

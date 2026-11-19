@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.5 (2026-11-19)
+
+- **Input power** reads 0 W when the station is not charging. After a charge the VOLIX P300 (firmware 1.0)
+  keeps sending the last charging power over Bluetooth (42-44 W, for hours) while its screen shows 0 W.
+  "Charging" is taken from the remaining-time field: the station sends 5994 there only while charging.
+  Diagnostics keep the raw value.
+- The remaining-time window now restarts on that same charging state (it used input power > 0, which
+  the stuck value kept true).
+
 ## 0.3.4 (2026-11-19)
 
 - New sensor **Time to full charge** (minutes). The station sends it in the settings frame (bytes 9–10),

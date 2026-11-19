@@ -147,7 +147,7 @@ class AllpowersDevice:
 
     def _add_remaining_sample(self, status: Status) -> None:
         now = time.monotonic()
-        charging = status.input_power > 0
+        charging = status.charging
         if charging != self._charging:
             self._charging = charging
             self._remaining_samples.clear()
