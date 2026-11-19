@@ -27,6 +27,7 @@ from .const import (
     DEFAULT_UPDATE_INTERVAL,
     KEEPALIVE_SECONDS,
     NOTIFY_UUID,
+    REMAINING_WINDOW_SECONDS,
     RETRY_MAX_SECONDS,
     RETRY_MIN_SECONDS,
     WAIT_ADVERTISEMENT_SECONDS,
@@ -74,11 +75,13 @@ class AllpowersDevice:
         self._on_address_change = on_address_change
         self.update_interval = update_interval
         self.status: Status | None = None
-        # Remaining time as published: the median of the readings since the last publish.
-        # The station divides its energy by the instantaneous load, so with a small, jittery
-        # load (a mini PC at 3-11 W) consecutive readings differ by +-10 %.
+        # Remaining time as published: the median of the readings of the last
+        # REMAINING_WINDOW_SECONDS. The station divides its energy by the current load, so with a
+        # small, jittery load (a mini PC at 3-11 W) it swings +-10 % over tens of seconds.
+        # The window restarts when the station starts or stops charging (the reading changes meaning).
         self.remaining_minutes: int | None = None
-        self._remaining_samples: list[int] = []
+        self._remaining_samples: deque[tuple[float, int]] = deque()
+        self._charging: bool | None = None
         self.settings: Settings | None = None
         self.connected = False
         self.last_frame: float | None = None
@@ -117,8 +120,7 @@ class AllpowersDevice:
             self._pending_publish()
             self._pending_publish = None
         if self._remaining_samples:
-            self.remaining_minutes = round(statistics.median(self._remaining_samples))
-            self._remaining_samples.clear()
+            self.remaining_minutes = round(statistics.median(v for _, v in self._remaining_samples))
         self._last_publish = time.monotonic()
         for listener in list(self._listeners):
             listener()
@@ -140,6 +142,16 @@ class AllpowersDevice:
 
         self._pending_publish = async_call_later(self.hass, wait, _flush)
 
+    def _add_remaining_sample(self, status: Status) -> None:
+        now = time.monotonic()
+        charging = status.input_power > 0
+        if charging != self._charging:
+            self._charging = charging
+            self._remaining_samples.clear()
+        self._remaining_samples.append((now, status.remaining_minutes))
+        while self._remaining_samples[0][0] < now - REMAINING_WINDOW_SECONDS:
+            self._remaining_samples.popleft()
+
     @callback
     def _set_connected(self, connected: bool) -> None:
         if connected != self.connected:
@@ -156,7 +168,7 @@ class AllpowersDevice:
         if frame.command == CMD_STATUS:
             if (status := decode_status(frame)) is not None:
                 self.status = status
-                self._remaining_samples.append(status.remaining_minutes)
+                self._add_remaining_sample(status)
         elif frame.command == CMD_SETTINGS:
             if (settings := decode_settings(frame)) is not None:
                 self.settings = settings

@@ -19,6 +19,7 @@ MIN_UPDATE_INTERVAL = 1
 MAX_UPDATE_INTERVAL = 300
 KEEPALIVE_SECONDS = 20  # status request period
 WATCHDOG_SECONDS = 60  # reconnect when no valid frame arrives for this long
+REMAINING_WINDOW_SECONDS = 600  # remaining time = median of the readings in this window
 RETRY_MIN_SECONDS = 5
 RETRY_MAX_SECONDS = 120
 WAIT_ADVERTISEMENT_SECONDS = 60

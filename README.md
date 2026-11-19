@@ -14,7 +14,7 @@ the server is running on battery and for how long it can last.
 |---|---|
 | Battery | % |
 | Input power / Output power | W |
-| Remaining time | as estimated by the station; median of the readings in each update interval, shown in hours (stored in minutes) |
+| Remaining time | as estimated by the station; median of the last 10 minutes, shown in hours (stored in minutes) |
 | AC output / DC output / Light | switches (no light switch on models without one, e.g. VOLIX P300) |
 | ECO mode | switch (configuration) |
 | Work mode | select: mute / standard / fast (configuration) |

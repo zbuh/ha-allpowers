@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.3 (2026-11-19)
+
+- **Remaining time** is now the median of the readings of the last 10 minutes (it restarts when the
+  station starts or stops charging). The per-interval median of 0.3.2 removed single spikes but not
+  the swing: the station's estimate drifts +-10 % over tens of seconds with a small load (26.7-30.9 h
+  every 15 s on a VOLIX P300 at 5-6 W).
+
 ## 0.3.2 (2026-11-19)
 
 - **Remaining time** is the median of the readings received during each update interval instead of
