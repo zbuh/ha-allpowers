@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.2 (2026-11-19)
+
+- **Remaining time** is the median of the readings received during each update interval instead of
+  the last one. The station divides its energy by the instantaneous load, so with a small load the
+  value jumped +-150 min every few seconds (seen: 1476-2151 min within an hour at 5-6 W).
+- Remaining time is shown in hours with one decimal (31.2 h) on new installs. Existing entities keep
+  their unit: change it to hours in the entity settings. Statistics stay in minutes.
+
 ## 0.3.1 (2026-11-19)
 
 - No light switch on models without a built-in light (the protocol does not say; known list, for now

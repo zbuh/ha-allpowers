@@ -51,8 +51,10 @@ SENSORS: tuple[AllpowersSensorDescription, ...] = (
         key="remaining_time",
         device_class=SensorDeviceClass.DURATION,
         native_unit_of_measurement=UnitOfTime.MINUTES,
+        suggested_unit_of_measurement=UnitOfTime.HOURS,
+        suggested_display_precision=1,
         state_class=SensorStateClass.MEASUREMENT,
-        value=lambda d: d.status.remaining_minutes if d.status else None,
+        value=lambda d: d.remaining_minutes if d.status else None,
     ),
 )
 

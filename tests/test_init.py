@@ -88,7 +88,7 @@ async def test_entities_follow_notifications(hass: HomeAssistant):
     assert hass.states.get(battery).state == "87"
     assert hass.states.get(_eid(hass, "sensor", "input_power")).state == "0"
     assert hass.states.get(_eid(hass, "sensor", "output_power")).state == "45"
-    assert hass.states.get(_eid(hass, "sensor", "remaining_time")).state == "300"
+    assert float(hass.states.get(_eid(hass, "sensor", "remaining_time")).state) == 5.0  # 300 min
     assert hass.states.get(_eid(hass, "select", "work_mode")).state == "standard"
     assert hass.states.get(_eid(hass, "select", "eco_shutdown")).state == "1"
     assert hass.states.get(_eid(hass, "switch", "ac_output")).state == STATE_ON
@@ -203,6 +203,37 @@ async def test_updates_are_throttled(hass: HomeAssistant):
     async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=16))
     await hass.async_block_till_done()
     assert changes == ["4", "19"]
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_remaining_time_is_the_median_of_the_interval(hass: HomeAssistant):
+    """The station's estimate jitters with the load: publish the median of the interval."""
+    entry = _entry(hass)
+    with patch.object(device_module.AllpowersDevice, "start"):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+    device = entry.runtime_data
+    device._set_connected(True)
+    remaining = _eid(hass, "sensor", "remaining_time")
+    state = hass.states.get(remaining)
+    assert state.attributes["unit_of_measurement"] == "h"  # new install: hours
+
+    device._last_publish = 0
+    device.handle_notification(None, bytearray(status_frame(minutes=1950)))
+    await hass.async_block_till_done()
+    assert float(hass.states.get(remaining).state) == pytest.approx(1950 / 60)
+
+    for minutes in (1476, 1990, 2010, 2151, 1980):
+        device.handle_notification(None, bytearray(status_frame(minutes=minutes)))
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=16))
+    await hass.async_block_till_done()
+    assert device.remaining_minutes == 1990
+    assert float(hass.states.get(remaining).state) == pytest.approx(1990 / 60)
+
+    # A publish with no new status (connection change) keeps the last value.
+    device._set_connected(False)
+    device._set_connected(True)
+    assert device.remaining_minutes == 1990
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import statistics
 import time
 from collections import deque
 from collections.abc import Callable
@@ -73,6 +74,11 @@ class AllpowersDevice:
         self._on_address_change = on_address_change
         self.update_interval = update_interval
         self.status: Status | None = None
+        # Remaining time as published: the median of the readings since the last publish.
+        # The station divides its energy by the instantaneous load, so with a small, jittery
+        # load (a mini PC at 3-11 W) consecutive readings differ by +-10 %.
+        self.remaining_minutes: int | None = None
+        self._remaining_samples: list[int] = []
         self.settings: Settings | None = None
         self.connected = False
         self.last_frame: float | None = None
@@ -110,6 +116,9 @@ class AllpowersDevice:
         if self._pending_publish is not None:
             self._pending_publish()
             self._pending_publish = None
+        if self._remaining_samples:
+            self.remaining_minutes = round(statistics.median(self._remaining_samples))
+            self._remaining_samples.clear()
         self._last_publish = time.monotonic()
         for listener in list(self._listeners):
             listener()
@@ -147,6 +156,7 @@ class AllpowersDevice:
         if frame.command == CMD_STATUS:
             if (status := decode_status(frame)) is not None:
                 self.status = status
+                self._remaining_samples.append(status.remaining_minutes)
         elif frame.command == CMD_SETTINGS:
             if (settings := decode_settings(frame)) is not None:
                 self.settings = settings
