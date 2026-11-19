@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.1 (2026-11-19)
+
+- No light switch on models without a built-in light (the protocol does not say; known list, for now
+  the VOLIX P300). A light switch created by 0.3.0 for such a model is removed automatically.
+- Known P300 behaviour (firmware 1.0): after a charge the input power reported over Bluetooth can stay
+  at its last value (seen: 44 W for 11 h with the screen at 0 W) until the station is unplugged. This
+  is what the station sends; the integration reports it as is.
+
 ## 0.3.0 (2026-11-18)
 
 - **Controls**: switches for AC output, DC output, light and ECO mode; selects for work mode

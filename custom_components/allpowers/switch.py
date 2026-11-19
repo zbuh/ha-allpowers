@@ -9,9 +9,11 @@ from typing import Any
 from homeassistant.components.switch import SwitchDeviceClass, SwitchEntity, SwitchEntityDescription
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import AllpowersConfigEntry
+from .const import DOMAIN, has_light
 from .device import AllpowersDevice
 from .entity import AllpowersEntity
 
@@ -20,6 +22,7 @@ from .entity import AllpowersEntity
 class AllpowersSwitchDescription(SwitchEntityDescription):
     value: Callable[[AllpowersDevice], bool | None]
     set: Callable[[AllpowersDevice, bool], Awaitable[None]]
+    supported: Callable[[AllpowersDevice], bool] = lambda _device: True
 
 
 SWITCHES: tuple[AllpowersSwitchDescription, ...] = (
@@ -37,6 +40,7 @@ SWITCHES: tuple[AllpowersSwitchDescription, ...] = (
     ),
     AllpowersSwitchDescription(
         key="light",
+        supported=lambda d: has_light(d.name),
         value=lambda d: d.status.light_on if d.status else None,
         set=lambda d, on: d.async_set_outputs(light=on),
     ),
@@ -56,7 +60,14 @@ async def async_setup_entry(
 ) -> None:
     device = entry.runtime_data
     unique_id = entry.unique_id or entry.data["address"]
-    async_add_entities(AllpowersSwitch(device, unique_id, description) for description in SWITCHES)
+    registry = er.async_get(hass)
+    entities = []
+    for description in SWITCHES:
+        if description.supported(device):
+            entities.append(AllpowersSwitch(device, unique_id, description))
+        elif entity_id := registry.async_get_entity_id("switch", DOMAIN, f"{unique_id}_{description.key}"):
+            registry.async_remove(entity_id)  # created by an older version for a model without it
+    async_add_entities(entities)
 
 
 class AllpowersSwitch(AllpowersEntity, SwitchEntity):

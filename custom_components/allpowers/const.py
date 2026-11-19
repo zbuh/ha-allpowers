@@ -24,5 +24,13 @@ RETRY_MAX_SECONDS = 120
 WAIT_ADVERTISEMENT_SECONDS = 60
 
 
+# Models known to have no built-in light (the protocol does not say; the light bit just stays 0).
+NO_LIGHT_PREFIXES = ("VOLIX P300",)
+
+
 def is_supported_name(name: str | None) -> bool:
     return bool(name) and name.startswith(LOCAL_NAME_PREFIXES)
+
+
+def has_light(name: str) -> bool:
+    return not name.startswith(NO_LIGHT_PREFIXES)

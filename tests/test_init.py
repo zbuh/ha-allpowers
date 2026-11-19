@@ -93,7 +93,6 @@ async def test_entities_follow_notifications(hass: HomeAssistant):
     assert hass.states.get(_eid(hass, "select", "eco_shutdown")).state == "1"
     assert hass.states.get(_eid(hass, "switch", "ac_output")).state == STATE_ON
     assert hass.states.get(_eid(hass, "switch", "dc_output")).state == STATE_ON
-    assert hass.states.get(_eid(hass, "switch", "light")).state == STATE_OFF
     assert hass.states.get(_eid(hass, "switch", "eco_mode")).state == STATE_OFF
     assert hass.states.get(connection).state == STATE_ON
 
@@ -270,9 +269,9 @@ async def test_switch_commands_are_confirmed(hass: HomeAssistant, monkeypatch: p
     assert hass.states.get(ac).state == STATE_ON
     assert (WRITE_UUID, bytes.fromhex("a56500b10101000372")) in client.writes  # AC + DC kept on
 
-    light = _eid(hass, "switch", "light")
-    await hass.services.async_call("switch", "turn_on", {"entity_id": light}, blocking=True)
-    assert hass.states.get(light).state == STATE_ON
+    # The P300 has no light switch; the command itself still uses the control bit 5.
+    await entry.runtime_data.async_set_outputs(light=True)
+    assert entry.runtime_data.status.light_on
     assert client.writes[-1][1][7] == 0x23
 
     await hass.services.async_call(
@@ -319,4 +318,34 @@ async def test_command_when_disconnected_raises(hass: HomeAssistant):
         await hass.async_block_till_done()
     with pytest.raises(HomeAssistantError, match="not connected"):
         await entry.runtime_data.async_set_outputs(ac=False)
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_p300_has_no_light_switch(hass: HomeAssistant):
+    """The VOLIX P300 has no light: no switch, and one left by an older version is removed."""
+    registry = er.async_get(hass)
+    old = registry.async_get_or_create(
+        "switch", DOMAIN, f"{P300_ADDRESS}_light", suggested_object_id="old_light"
+    )
+    entry = _entry(hass)
+    with patch.object(device_module.AllpowersDevice, "start"):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+    assert registry.async_get(old.entity_id) is None
+    assert registry.async_get_entity_id("switch", DOMAIN, f"{P300_ADDRESS}_ac_output") is not None
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_other_models_keep_the_light_switch(hass: HomeAssistant):
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="AP S300",
+        unique_id="AA:BB:CC:DD:EE:01",
+        data={CONF_ADDRESS: "AA:BB:CC:DD:EE:01", CONF_NAME: "AP S300 1234"},
+    )
+    entry.add_to_hass(hass)
+    with patch.object(device_module.AllpowersDevice, "start"):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+    assert er.async_get(hass).async_get_entity_id("switch", DOMAIN, "AA:BB:CC:DD:EE:01_light") is not None
     assert await hass.config_entries.async_unload(entry.entry_id)
