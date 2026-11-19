@@ -23,6 +23,8 @@ from .entity import AllpowersEntity
 @dataclass(frozen=True, kw_only=True)
 class AllpowersSensorDescription(SensorEntityDescription):
     value: Callable[[AllpowersDevice], int | str | None]
+    # Data received (the value itself may be None: unknown, e.g. no remaining time while charging).
+    has_data: Callable[[AllpowersDevice], bool] = lambda d: d.status is not None
 
 
 SENSORS: tuple[AllpowersSensorDescription, ...] = (
@@ -56,6 +58,15 @@ SENSORS: tuple[AllpowersSensorDescription, ...] = (
         state_class=SensorStateClass.MEASUREMENT,
         value=lambda d: d.remaining_minutes if d.status else None,
     ),
+    AllpowersSensorDescription(
+        key="charge_time",
+        device_class=SensorDeviceClass.DURATION,
+        native_unit_of_measurement=UnitOfTime.MINUTES,
+        suggested_display_precision=0,
+        state_class=SensorStateClass.MEASUREMENT,
+        value=lambda d: d.settings.charge_minutes if d.settings else None,
+        has_data=lambda d: d.settings is not None,
+    ),
 )
 
 
@@ -80,7 +91,7 @@ class AllpowersSensor(AllpowersEntity, SensorEntity):
 
     @property
     def available(self) -> bool:
-        return super().available and self.entity_description.value(self.device) is not None
+        return super().available and self.entity_description.has_data(self.device)
 
     @property
     def native_value(self) -> int | str | None:

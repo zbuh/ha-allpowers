@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.4 (2026-11-19)
+
+- New sensor **Time to full charge** (minutes). The station sends it in the settings frame (bytes 9–10),
+  not in the status frame.
+- Both time fields read 5994 (99:54) when there is nothing to estimate. That value is now unknown:
+  remaining time no longer shows 99.9 h while charging, and time to full is unknown while discharging.
+- The remaining-time window restarts when charging stops, so it never mixes readings from before the charge.
+
 ## 0.3.3 (2026-11-19)
 
 - **Remaining time** is now the median of the readings of the last 10 minutes (it restarts when the

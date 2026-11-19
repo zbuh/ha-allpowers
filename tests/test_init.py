@@ -90,6 +90,11 @@ async def test_entities_follow_notifications(hass: HomeAssistant):
     assert hass.states.get(_eid(hass, "sensor", "output_power")).state == "45"
     assert float(hass.states.get(_eid(hass, "sensor", "remaining_time")).state) == 5.0  # 300 min
     assert hass.states.get(_eid(hass, "select", "work_mode")).state == "standard"
+    assert hass.states.get(_eid(hass, "sensor", "charge_time")).state == "unknown"  # not charging
+    device.handle_notification(None, bytearray.fromhex("a565b1000106030201000a10107c"))
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=32))
+    await hass.async_block_till_done()
+    assert hass.states.get(_eid(hass, "sensor", "charge_time")).state == "10"
     assert hass.states.get(_eid(hass, "select", "eco_shutdown")).state == "1"
     assert hass.states.get(_eid(hass, "switch", "ac_output")).state == STATE_ON
     assert hass.states.get(_eid(hass, "switch", "dc_output")).state == STATE_ON
@@ -234,15 +239,20 @@ async def test_remaining_time_is_a_rolling_median(hass: HomeAssistant, monkeypat
     send(1800)
     assert device.remaining_minutes == 1800
 
-    # Charging starts: the window restarts (the reading now means something else).
-    send(1700)
-    send(120, input_w=60)
-    assert device.remaining_minutes == 120
-
     # A publish with no new status (connection change) keeps the last value.
     device._set_connected(False)
     device._set_connected(True)
-    assert device.remaining_minutes == 120
+    assert device.remaining_minutes == 1800
+
+    # Charging: the station has no estimate (5994) -> unknown, not 99.9 h.
+    send(5994, input_w=112)
+    await hass.async_block_till_done()
+    assert device.remaining_minutes is None
+    assert hass.states.get(remaining).state == "unknown"
+    # Discharging again: a new window, without readings from before the charge.
+    send(1500)
+    send(1600)
+    assert device.remaining_minutes == 1550
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 

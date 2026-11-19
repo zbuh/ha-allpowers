@@ -34,7 +34,17 @@ def test_real_p300_settings_frame():
     assert settings.eco_shutdown_hours == 1
     assert settings.hardware_version == "1.0"
     assert settings.firmware_version == "1.0"
+    assert settings.charge_minutes is None  # 0x176a = 5994: not charging
     assert decode_status(parsed) is None
+
+
+def test_real_p300_frames_while_charging():
+    """Read from a VOLIX P300 charging at 112 W, screen showing ~11 min to full (2026-11-19)."""
+    settings = decode_settings(parse_frame(bytes.fromhex("a565b1000106030201000a10107c")))
+    assert settings.charge_minutes == 10
+    status = decode_status(parse_frame(bytes.fromhex("a565b100010801015e00700006176a2d")))
+    assert (status.battery, status.input_power, status.output_power) == (94, 112, 6)
+    assert status.remaining_minutes is None
 
 
 def test_status_frame():
@@ -50,10 +60,10 @@ def test_status_frame():
 
 
 def test_status_large_values_are_big_endian():
-    status = decode_status(parse_frame(status_frame(input_w=0x0102, output_w=600, minutes=5999, flags=0)))
+    status = decode_status(parse_frame(status_frame(input_w=0x0102, output_w=600, minutes=5993, flags=0)))
     assert status.input_power == 258
     assert status.output_power == 600
-    assert status.remaining_minutes == 5999
+    assert status.remaining_minutes == 5993
     assert (status.dc_on, status.ac_on, status.light_on) == (False, False, False)
 
 

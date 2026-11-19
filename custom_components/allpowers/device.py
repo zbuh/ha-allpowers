@@ -119,8 +119,11 @@ class AllpowersDevice:
         if self._pending_publish is not None:
             self._pending_publish()
             self._pending_publish = None
-        if self._remaining_samples:
-            self.remaining_minutes = round(statistics.median(v for _, v in self._remaining_samples))
+        self.remaining_minutes = (
+            round(statistics.median(v for _, v in self._remaining_samples))
+            if self._remaining_samples
+            else None
+        )
         self._last_publish = time.monotonic()
         for listener in list(self._listeners):
             listener()
@@ -148,6 +151,9 @@ class AllpowersDevice:
         if charging != self._charging:
             self._charging = charging
             self._remaining_samples.clear()
+        if status.remaining_minutes is None:  # charging: the station has no estimate
+            self._remaining_samples.clear()
+            return
         self._remaining_samples.append((now, status.remaining_minutes))
         while self._remaining_samples[0][0] < now - REMAINING_WINDOW_SECONDS:
             self._remaining_samples.popleft()

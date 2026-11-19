@@ -59,6 +59,9 @@
       },
       "remaining_time": {
         "name": "Autonomia"
+      },
+      "charge_time": {
+        "name": "Tempo até carregar"
       }
     },
     "binary_sensor": {

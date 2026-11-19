@@ -38,7 +38,7 @@ A5 65 B1 00 01 06 01 00 00 00 00 00
 | 8 | battery % (0–100) |
 | 9–10 | input power, W, big-endian |
 | 11–12 | output power, W, big-endian |
-| 13–14 | remaining time, minutes, big-endian |
+| 13–14 | remaining time, minutes, big-endian; 5994 (99:54) while charging |
 
 ### Command 0x03: settings
 
@@ -48,6 +48,7 @@ A5 65 B1 00 01 06 01 00 00 00 00 00
 | 7 bits 1–2 | work mode: 0 mute, 1 standard, 2 fast |
 | 7 bit 4 | car charger socket |
 | 8 | ECO shutdown, hours |
+| 9–10 | time to full charge, minutes, big-endian; 5994 (99:54) while not charging (P300: `000a` = 10 min with the screen at ~11 min) |
 | 11 / 12 | hardware / firmware version (hex digits read as `major.minor`) |
 
 Real frame from a VOLIX P300 (standard mode, ECO off, 1 h, versions 1.0/1.0):

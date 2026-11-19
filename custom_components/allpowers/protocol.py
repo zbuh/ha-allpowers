@@ -28,6 +28,14 @@ CMD_SETTINGS = 0x03
 STATUS_REQUEST = bytes.fromhex("a565b10001060100000000 00".replace(" ", ""))
 
 WORK_MODES = {0: "mute", 1: "standard", 2: "fast"}
+# Time fields (minutes) read 5994 (99:54) when there is nothing to estimate: the remaining time while
+# charging, the time to full while discharging.
+NO_TIME = 5994
+
+
+def _minutes(raw: bytes) -> int | None:
+    value = int.from_bytes(raw, "big")
+    return None if value >= NO_TIME else value
 
 
 def xor(data: bytes) -> int:
@@ -54,7 +62,7 @@ class Status:
     battery: int
     input_power: int
     output_power: int
-    remaining_minutes: int
+    remaining_minutes: int | None  # None while charging
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,6 +73,7 @@ class Settings:
     work_mode: str | None
     car_charger: bool
     eco_shutdown_hours: int
+    charge_minutes: int | None  # time to full; None while not charging
     hardware_version: str
     firmware_version: str
     raw_flags: int
@@ -102,7 +111,7 @@ def decode_status(frame: Frame) -> Status | None:
         battery=battery,
         input_power=int.from_bytes(raw[9:11], "big"),
         output_power=int.from_bytes(raw[11:13], "big"),
-        remaining_minutes=int.from_bytes(raw[13:15], "big"),
+        remaining_minutes=_minutes(raw[13:15]),
     )
 
 
@@ -116,6 +125,7 @@ def decode_settings(frame: Frame) -> Settings | None:
         work_mode=WORK_MODES.get((flags >> 1) & 0x03),
         car_charger=bool(flags & 0x10),
         eco_shutdown_hours=raw[8],
+        charge_minutes=_minutes(raw[9:11]),
         hardware_version=version(raw[11]),
         firmware_version=version(raw[12]),
         raw_flags=flags,

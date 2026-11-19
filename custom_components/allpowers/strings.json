@@ -59,6 +59,9 @@
       },
       "remaining_time": {
         "name": "Remaining time"
+      },
+      "charge_time": {
+        "name": "Time to full charge"
       }
     },
     "binary_sensor": {
