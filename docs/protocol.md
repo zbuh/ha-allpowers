@@ -53,3 +53,14 @@ A5 65 B1 00 01 06 01 00 00 00 00 00
 
 Real frame from a VOLIX P300 (standard mode, ECO off, 1 h, versions 1.0/1.0):
 `a565b1000106030201176a10100b`.
+
+## Known firmware behaviour (VOLIX P300, firmware 1.0)
+
+- After a full charge the station stops charging and runs the load from the battery down to ~88 %. Then it
+  enters a pass-through/maintenance mode: the screen shows a charging animation, an input power that follows
+  the output (~7 W for a 5-6 W load) and a remaining time computed from the net drain (9.9 days).
+- In that mode the status frame keeps sending a remaining-time estimate (not 5994) and an input power that has
+  nothing to do with the screen (seen: 141 W, fixed for hours). The official ALLPOWERS app shows the same
+  141 W, so the value on the screen is not sent over Bluetooth.
+- Therefore input power is only meaningful while bytes 13-14 = 5994 (a real charge); the integration
+  reports 0 W otherwise (0.3.5).
